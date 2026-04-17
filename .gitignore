@@ -26,7 +26,9 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 
+# Run logs
+runs/
+
 # Misc
 .env
 .DS_Store
-*.png
