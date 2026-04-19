@@ -108,8 +108,18 @@ def _build_piece_library() -> Dict[PieceId, Tuple[PieceOrientation, ...]]:
         orientations: List[PieceOrientation] = []
         for orientation_id, raw_cells in enumerate(raw_orientations):
             cells_local = _normalize_cells(raw_cells)
+            
+            if len(cells_local) != 4:
+                raise ValueError(f"Piece {piece_id} orientation {orientation_id}: expected 4 cells, got {len(cells_local)}")
+            if any(x < 0 or y < 0 for x, y in cells_local):
+                raise ValueError(f"Piece {piece_id} orientation {orientation_id}: negative coordinates after normalization")
+            
             width = 1 + max(x for x, _ in cells_local)
             height = 1 + max(y for _, y in cells_local)
+            
+            if width > BOARD_WIDTH:
+                raise ValueError(f"Piece {piece_id} orientation {orientation_id}: width {width} exceeds board width {BOARD_WIDTH}")
+            
             orientations.append(
                 PieceOrientation(
                     piece_id=piece_id,
@@ -124,6 +134,11 @@ def _build_piece_library() -> Dict[PieceId, Tuple[PieceOrientation, ...]]:
 
 
 PIECE_LIBRARY = _build_piece_library()
+
+PIECE_ORIENTATION_BY_ID = {
+    piece_id: {ori.orientation_id: ori for ori in orientations}
+    for piece_id, orientations in PIECE_LIBRARY.items()
+}
 
 
 def _build_canonical_slots(
@@ -154,7 +169,9 @@ def _build_canonical_slots(
 
 
 CANONICAL_SLOTS = _build_canonical_slots(PIECE_LIBRARY)
+
 ACTION_SPACE_SIZE = max(len(slots) for slots in CANONICAL_SLOTS.values())
+assert ACTION_SPACE_SIZE == 34, f"Expected ACTION_SPACE_SIZE=34, got {ACTION_SPACE_SIZE}"
 
 
 def empty_board() -> np.ndarray:
@@ -339,7 +356,7 @@ def enumerate_candidates(
 
     orientations = PIECE_LIBRARY[piece_id]
     slots = CANONICAL_SLOTS[piece_id]
-    orientation_lookup = {ori.orientation_id: ori for ori in orientations}
+    orientation_lookup = PIECE_ORIENTATION_BY_ID[piece_id]
 
     for slot in slots:
         orientation = orientation_lookup[slot.orientation_id]

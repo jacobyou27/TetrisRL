@@ -23,6 +23,7 @@ from src.envs.placement_core import (
     BOARD_HEIGHT,
     BOARD_WIDTH,
     ACTION_SPACE_SIZE,
+    PIECE_LIBRARY,
     candidate_by_action_id,
     default_spawn_orientation,
     default_spawn_x,
@@ -147,7 +148,8 @@ def build_replay_scripts(piece_id: str, candidate) -> dict[str, str]:
     spawn_x = default_spawn_x(piece_id)
     spawn_y = default_spawn_y(piece_id)
 
-    rot_steps = max(0, candidate.orientation_id - spawn_orientation.orientation_id)
+    num_orientations = len(PIECE_LIBRARY[piece_id])
+    rot_steps = (candidate.orientation_id - spawn_orientation.orientation_id) % num_orientations
 
     dx = candidate.x - spawn_x
     horizontal = []
