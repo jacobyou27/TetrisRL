@@ -16,6 +16,100 @@ The final pipeline combines:
 
 The central question of the project is whether structured domain knowledge plus automated tuning can outperform or out-explain more generic RL approaches on a highly structured game.
 
+## Quick Start
+
+### 1. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Run GA tuning
+
+Example GA run:
+
+```bash
+python -m src.agents.tune_heuristic_ga --population 24 --elite 4 --generations 24 --episodes-per-individual 4 --max-steps 300 --lookahead-depth 0 --workers 12 --verbosity 2 --plot --save-name ga_overnight_l0_v3
+```
+
+### 3. Evaluate the best saved weights with lookahead
+
+Example long-horizon evaluation:
+
+```bash
+python -m src.agents.heuristic_agent --weights-json runs/ga/ga_overnight_l0_v3/best_weights.json --lookahead-depth 1 --lookahead-weight 1.0 --episodes 20 --max-steps 1000 --plot
+```
+
+### 4. Render one episode
+
+```bash
+python -m src.agents.heuristic_agent --weights-json runs/ga/ga_overnight_l0_v3/best_weights.json --lookahead-depth 1 --lookahead-weight 1.0 --episodes 1 --max-steps 1000 --render --delay-ms 60
+```
+
+### 5. Run the benchmark / profiler
+
+```bash
+python -m src.scripts.benchmark_simulator
+python -m src.scripts.profile_simulator
+```
+
+See `SETUP.md` for more detailed environment setup, troubleshooting, and notes on the expected repository layout.
+
+## Video Links
+
+- **Demo Video:** [INSERT_DEMO_VIDEO_LINK]
+- **Technical Walkthrough:** [INSERT_TECH_WALKTHROUGH_LINK]
+
+## Evaluation
+
+The final evaluation emphasizes **gameplay-relevant metrics** rather than only shaped reward. Reported metrics include:
+
+- total reward,
+- total score,
+- total lines cleared,
+- episode length,
+- top-out rate,
+- and line-clear mix (singles, doubles, triples, tetrises).
+
+### Representative Results
+
+#### Best GA result during tuning (lookahead off during search)
+
+- Generation: **16**
+- Fitness: **173.21**
+- Mean lines: **117.75**
+- Mean score: **1341.50**
+- Mean singles / doubles / triples / tetrises: **68.0 / 14.5 / 4.25 / 2.0**
+- Top-out rate: **0.0%**
+
+This result reflects the strongest GA individual found during training under the final tuned objective.
+
+#### Long-horizon evaluation (1000-step cap) of saved best weights
+
+| Eval setting | Mean reward | Mean score | Mean lines | Mean episode length | Top-out rate | Singles | Doubles | Triples | Tetrises |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Lookahead weight **0.25** | 7221.36 | 2231.44 | 384.40 | 966.25 | 5.0% | 278.05 | 44.75 | 4.75 | 0.65 |
+| Lookahead weight **0.50** | 7864.55 | 2517.36 | 389.20 | 979.00 | 5.0% | 269.90 | 49.40 | 4.90 | 1.45 |
+| Lookahead weight **1.00** | 8175.54 | 2496.02 | 398.40 | 1000.00 | 0.0% | 267.65 | 56.05 | 5.35 | 0.65 |
+
+### Interpretation
+
+These results show a meaningful tradeoff between:
+
+- **stable long-horizon play** (higher reward, lower top-out rate, longer survival), and
+- **more aggressive big-clear behavior** (more triples/tetrises in some settings, but sometimes less stability).
+
+The best overall stable model used **lookahead weight 1.0** during evaluation, while lower lookahead weights produced less stable behavior and more top-outs.
+
+### Simulator Throughput
+
+Representative benchmark results on the optimized simulator:
+
+- **No-lookahead rollout throughput:** about **31.0 steps/sec**
+- **One-piece lookahead rollout throughput:** about **1.4 steps/sec**
+
+This large compute gap motivated the final workflow: **tune weights with greedy evaluation for speed, then use lookahead only during final evaluation and demonstration.**
+
 ## Project Goal / Motivation
 
 Tetris is a difficult sequential decision problem, but it is also highly structured: board geometry, holes, wells, line clears, and stack shape matter directly. Early in the project I explored the standard RL framing of learning low-level control in a falling-piece environment. That approach was harder to train and less interpretable than expected.
@@ -108,7 +202,7 @@ Before any major design pivot, a lot of work went into practical setup and inspe
 
 This phase was important because it exposed the real structure of the environment: the observation was a dict, not just a flat vector, and the board / active-piece representation was more complex than a simple 10x20 matrix.
 
-### Real Tetris Logic
+### Real Tetris logic
 
 Early on, I also considered whether the project should model:
 
@@ -174,91 +268,6 @@ The final project direction became:
 
 That final direction is very different from the original PPO idea, and much better matched to the actual structure of the problem.
 
-## Quick Start
-
-### 1. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Run GA tuning
-
-Example GA run:
-
-```bash
-python -m src.agents.tune_heuristic_ga --population 24 --elite 4 --generations 24 --episodes-per-individual 4 --max-steps 300 --lookahead-depth 0 --workers 12 --verbosity 2 --plot --save-name ga_overnight_l0_v3
-```
-
-### 3. Evaluate the best saved weights with lookahead
-
-Example long-horizon evaluation:
-
-```bash
-python -m src.agents.heuristic_agent --weights-json runs/ga/ga_overnight_l0_v3/best_weights.json --lookahead-depth 1 --lookahead-weight 1.0 --episodes 20 --max-steps 1000 --plot
-```
-
-### 4. Render one episode
-
-```bash
-python -m src.agents.heuristic_agent --weights-json runs/ga/ga_overnight_l0_v3/best_weights.json --lookahead-depth 1 --lookahead-weight 1.0 --episodes 1 --max-steps 1000 --render --delay-ms 60
-```
-
-## Video Links
-
-- **Demo Video:** [INSERT_DEMO_VIDEO_LINK]
-- **Technical Walkthrough:** [INSERT_TECH_WALKTHROUGH_LINK]
-
-## Evaluation
-
-The final evaluation emphasizes **gameplay-relevant metrics** rather than only shaped reward. Reported metrics include:
-
-- total reward,
-- total score,
-- total lines cleared,
-- episode length,
-- top-out rate,
-- and line-clear mix (singles, doubles, triples, tetrises).
-
-### Representative Results
-
-#### Best GA result during tuning (lookahead off during search)
-
-- Generation: **16**
-- Fitness: **173.21**
-- Mean lines: **117.75**
-- Mean score: **1341.50**
-- Mean singles / doubles / triples / tetrises: **68.0 / 14.5 / 4.25 / 2.0**
-- Top-out rate: **0.0%**
-
-This result reflects the strongest GA individual found during training under the final tuned objective.
-
-#### Long-horizon evaluation (1000-step cap) of saved best weights
-
-| Eval setting | Mean reward | Mean score | Mean lines | Mean episode length | Top-out rate | Singles | Doubles | Triples | Tetrises |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Lookahead weight **0.25** | 7221.36 | 2231.44 | 384.40 | 966.25 | 5.0% | 278.05 | 44.75 | 4.75 | 0.65 |
-| Lookahead weight **0.50** | 7864.55 | 2517.36 | 389.20 | 979.00 | 5.0% | 269.90 | 49.40 | 4.90 | 1.45 |
-| Lookahead weight **1.00** | 8175.54 | 2496.02 | 398.40 | 1000.00 | 0.0% | 267.65 | 56.05 | 5.35 | 0.65 |
-
-### Interpretation
-
-These results show a meaningful tradeoff between:
-
-- **stable long-horizon play** (higher reward, lower top-out rate, longer survival), and
-- **more aggressive big-clear behavior** (more triples/tetrises in some settings, but sometimes less stability).
-
-The best overall stable model used **lookahead weight 1.0** during evaluation, while lower lookahead weights produced less stable behavior and more top-outs.
-
-### Simulator Throughput
-
-Representative benchmark results on the optimized simulator:
-
-- **No-lookahead rollout throughput:** about **31.0 steps/sec**
-- **One-piece lookahead rollout throughput:** about **1.4 steps/sec**
-
-This large compute gap motivated the final workflow: **tune weights with greedy evaluation for speed, then use lookahead only during final evaluation and demonstration.**
-
 ## Key Results / Highlights
 
 - A custom placement-based Tetris environment replaced primitive-action control with final placement selection, making the task more tractable and interpretable.
@@ -281,16 +290,16 @@ TetrisRL/
 │   ├── envs/
 │   │   ├── placement_core.py
 │   │   └── placement_env.py
-│   └── agents/
-│       ├── random_valid_agent.py
-│       ├── heuristic_core.py
-│       ├── heuristic_agent.py
-│       └── tune_heuristic_ga.py
-├── scripts/
-│   ├── benchmark_simulator.py
-│   ├── placement_simulator.py
-│   ├── profile_simulator.py
-│   └── watch_saved_model.py
+│   ├── agents/
+│   │   ├── random_valid_agent.py
+│   │   ├── heuristic_core.py
+│   │   ├── heuristic_agent.py
+│   │   └── tune_heuristic_ga.py
+│   └── scripts/
+│       ├── benchmark_simulator.py
+│       ├── placement_simulator.py
+│       ├── profile_simulator.py
+│       └── watch_saved_model.py
 ├── tests/
 │   └── smoke_test_placement_env.py
 └── runs/
