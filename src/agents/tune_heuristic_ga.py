@@ -25,21 +25,9 @@ from src.agents.heuristic_core import (
     choose_best_action_with_lookahead,
 )
 
-# Visualization helpers are imported lazily so worker processes do not pay GUI import costs.
 from src.envs.placement_env import PlacementTetrisEnv, RewardConfig
 
 RUNS_DIR = PROJECT_ROOT / "runs" / "ga"
-
-
-def _viz_modules():
-    from src.agents.ga_visualization import (
-        LiveDashboard,
-        ShowcaseVideoWriter,
-        ShowcaseWindow,
-        compose_panels,
-        draw_board_panel,
-    )
-    return LiveDashboard, ShowcaseVideoWriter, ShowcaseWindow, compose_panels, draw_board_panel
 
 
 def setup_logging(log_dir: Path, verbosity: int = 1) -> logging.Logger:
@@ -174,13 +162,10 @@ def plot_final_weights(best_individual_dict: dict[str, float], output_dir: Path,
 
 @dataclass(frozen=True)
 class GAIndividual:
-    # Tetris-friendly defaults: keep singles modest, preserve doubles as the
-    # safe board-stabilizing clear, and make triples/tetrises much more valuable.
     single_score: float = 3.5
     double_score: float = 18.0
     triple_score: float = 70.0
     tetris_score: float = 240.0
-    # Strong anti-hole / anti-fragmentation bias to make long clears feasible.
     aggregate_height_weight: float = 1.15
     holes_weight: float = 8.50
     bumpiness_weight: float = 0.16
@@ -189,7 +174,6 @@ class GAIndividual:
     column_transitions_weight: float = 1.90
     rows_with_holes_weight: float = 2.20
     hole_depth_weight: float = 2.00
-    # Allow rewarding a clean well by making this weight slightly negative.
     cumulative_wells_weight: float = -0.50
     eroded_piece_cells_weight: float = 5.00
     lookahead_weight: float = 0.60
@@ -237,33 +221,24 @@ class GAIndividual:
 
 
 GENE_RANGES: dict[str, tuple[float, float]] = {
-    # Keep singles modest so the search is not rewarded for shallow, constant singles.
     "single_score": (0.0, 4.0),
-    # Doubles are still useful as a stabilizing clear, but do not cap them so hard
-    # that the agent stops taking healthy cleanups.
     "double_score": (12.0, 24.0),
     "triple_score": (45.0, 110.0),
     "tetris_score": (180.0, 320.0),
-    # Stronger anti-hole / anti-fragmentation caps.
     "aggregate_height_weight": (0.4, 2.4),
     "holes_weight": (5.0, 18.0),
-    # Keep bumpiness from dominating; one intentional well should still be possible.
     "bumpiness_weight": (0.0, 0.9),
     "max_height_weight": (0.4, 2.5),
     "row_transitions_weight": (0.2, 3.5),
     "column_transitions_weight": (0.5, 4.0),
     "rows_with_holes_weight": (0.8, 7.0),
     "hole_depth_weight": (0.3, 4.5),
-    # Allow negative values so GA can reward a clean tetris well if that helps.
     "cumulative_wells_weight": (-2.0, 1.5),
     "eroded_piece_cells_weight": (1.0, 8.5),
     "lookahead_weight": (0.0, 1.2),
 }
 GENE_ORDER = [f.name for f in fields(GAIndividual)]
 
-# Fitness shaping for line-clear mix. Lines still dominate, but the search is
-# now much more explicitly biased toward stable doubles and especially triples/
-# tetrises, while gently discouraging endless singles.
 FITNESS_SCORE_SCALE = 0.015
 FITNESS_REWARD_SCALE = 0.004
 FITNESS_DOUBLE_BONUS = 0.80
@@ -306,15 +281,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--verbosity", type=int, default=1, choices=[0, 1, 2])
     parser.add_argument("--plot", action="store_true")
     parser.add_argument("--plot-every", type=int, default=0)
-    parser.add_argument("--live-dashboard", action="store_true", help="Show a live matplotlib dashboard while GA runs.")
-    parser.add_argument("--live-boards", action="store_true", help="Show side-by-side boards for showcase generations.")
-    parser.add_argument("--showcase-every", type=int, default=1, help="Visualize boards every N generations when --live-boards is on.")
-    parser.add_argument("--showcase-steps", type=int, default=160)
-    parser.add_argument("--showcase-delay-ms", type=int, default=65)
-    parser.add_argument("--showcase-upscale", type=int, default=18)
-    parser.add_argument("--showcase-save-frames", action="store_true", help="Save a PNG snapshot for each showcase generation.")
-    parser.add_argument("--showcase-save-video", action="store_true", help="Save a showcase MP4 for each showcase generation.")
-    parser.add_argument("--showcase-video-fps", type=int, default=12)
     parser.add_argument("--text-topk", type=int, default=3, help="Print the top-K individuals each generation.")
     parser.add_argument("--save-population-snapshots", action="store_true")
     parser.add_argument("--no-history-csv", action="store_true")
@@ -575,94 +541,6 @@ def text_generation_report(logger: logging.Logger, generation: int, ranked, topk
         )
 
 
-def generation_showcase(
-    args: argparse.Namespace,
-    run_dir: Path,
-    generation: int,
-    baseline: GAIndividual,
-    current_best: GAIndividual,
-    best_overall: GAIndividual | None,
-    window,
-) -> bool:
-    _, ShowcaseVideoWriter, _, compose_panels, draw_board_panel = _viz_modules()
-    if best_overall is None:
-        best_overall = current_best
-    triples = [
-        ("Seed baseline", baseline),
-        (f"Gen {generation + 1} best", current_best),
-        ("Best overall", best_overall),
-    ]
-    envs = [
-        PlacementTetrisEnv(reward_config=ind.to_reward_config(), max_steps=args.max_steps, initial_board_preset=args.preset)
-        for _, ind in triples
-    ]
-    video_writer = None
-    if args.showcase_save_video:
-        video_path = run_dir / "showcase_videos" / f"gen_{generation + 1:03d}.mp4"
-        video_writer = ShowcaseVideoWriter(video_path, fps=args.showcase_video_fps)
-
-    seed = args.seed + generation * 1000 + 7
-    infos = []
-    terms = []
-    truncs = []
-    totals = []
-    weights = []
-    try:
-        for idx, (_, ind) in enumerate(triples):
-            _, info = envs[idx].reset(seed=seed)
-            infos.append(info)
-            terms.append(False)
-            truncs.append(False)
-            totals.append({"score": 0.0, "lines": 0, "steps": 0})
-            weights.append(ind.to_heuristic_weights())
-
-        for step in range(args.showcase_steps):
-            panels = []
-            active_any = False
-            for idx, (title, ind) in enumerate(triples):
-                env = envs[idx]
-                if not (terms[idx] or truncs[idx]):
-                    action, _ = choose_action(env, weights[idx], args.lookahead_depth, ind.lookahead_weight)
-                    _, _, terms[idx], truncs[idx], infos[idx] = env.step(action)
-                    totals[idx]["score"] = float(infos[idx].get("total_score", 0.0))
-                    totals[idx]["lines"] = int(infos[idx].get("total_lines_cleared", 0))
-                    totals[idx]["steps"] += 1
-                    active_any = True
-                status = "done" if (terms[idx] or truncs[idx]) else f"step {totals[idx]['steps']}"
-                panels.append(
-                    draw_board_panel(
-                        board=env.board,
-                        current_piece=env.current_piece,
-                        next_piece=env.next_piece,
-                        title=title,
-                        lines=totals[idx]["lines"],
-                        score=totals[idx]["score"],
-                        steps=totals[idx]["steps"],
-                        status=status,
-                        cell_px=args.showcase_upscale,
-                    )
-                )
-            frame = compose_panels(panels)
-            if args.showcase_save_frames and step == args.showcase_steps - 1:
-                save_path = run_dir / "showcase_frames" / f"gen_{generation + 1:03d}.png"
-                save_path.parent.mkdir(parents=True, exist_ok=True)
-                import cv2
-                cv2.imwrite(str(save_path), frame)
-            if video_writer is not None:
-                video_writer.write(frame)
-            quit_requested = window.show(frame, delay_ms=args.showcase_delay_ms) if args.live_boards else False
-            if quit_requested:
-                return True
-            if not active_any:
-                break
-    finally:
-        for env in envs:
-            env.close()
-        if video_writer is not None:
-            video_writer.close()
-    return False
-
-
 def main() -> None:
     args = parse_args()
     if args.population < 2:
@@ -684,10 +562,6 @@ def main() -> None:
 
     history: list[dict[str, float]] = []
     best_overall: tuple[GAIndividual, EvalStats] | None = None
-    baseline = GAIndividual()
-    LiveDashboard, _, ShowcaseWindow, _, _ = _viz_modules() if (args.live_dashboard or args.live_boards or args.showcase_save_frames or args.showcase_save_video) else (None, None, None, None, None)
-    dashboard = LiveDashboard(run_dir) if args.live_dashboard and LiveDashboard is not None else None
-    showcase_window = ShowcaseWindow(enabled=args.live_boards) if ShowcaseWindow is not None else type("_NullShowcase", (), {"show": lambda self, frame, delay_ms=0: False, "close": lambda self: None})()
 
     executor = None
     if args.workers > 1:
@@ -746,28 +620,11 @@ def main() -> None:
             if args.save_population_snapshots:
                 save_population_snapshot(run_dir, generation, ranked)
 
-            if dashboard is not None:
-                dashboard.update(history)
-                dashboard.save_png(f"dashboard_gen_{generation + 1:03d}.png")
-
             if args.plot and args.plot_every > 0 and (generation + 1) % args.plot_every == 0:
+
                 plot_fitness_evolution(history, run_dir, logger)
                 plot_metrics_evolution(history, run_dir, logger)
                 plot_clear_mix_evolution(history, run_dir, logger)
-
-            if (args.live_boards or args.showcase_save_frames or args.showcase_save_video) and (generation % max(1, args.showcase_every) == 0):
-                quit_requested = generation_showcase(
-                    args=args,
-                    run_dir=run_dir,
-                    generation=generation,
-                    baseline=baseline,
-                    current_best=best_individual,
-                    best_overall=best_overall[0] if best_overall is not None else None,
-                    window=showcase_window,
-                )
-                if quit_requested:
-                    logger.info("Showcase window requested quit; disabling live boards for the rest of the run.")
-                    args.live_boards = False
 
             elites = [individual for individual, _, _ in ranked[: args.elite]]
             next_population = elites.copy()
@@ -783,15 +640,6 @@ def main() -> None:
     finally:
         if executor is not None:
             executor.shutdown(wait=True, cancel_futures=False)
-        if dashboard is not None:
-            dashboard.save_png()
-            dashboard.close()
-        showcase_window.close()
-        try:
-            import cv2
-            cv2.destroyAllWindows()
-        except Exception:
-            pass
 
     if best_overall is None:
         raise RuntimeError("GA finished without evaluating any individuals.")
