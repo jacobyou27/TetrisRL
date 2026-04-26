@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -12,7 +12,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.envs.placement_env import PlacementTetrisEnv
+from src.envs.placement_env import PlacementTetrisEnv, RewardConfig
 
 
 PLOTS_DIR = PROJECT_ROOT / "runs" / "plots"
@@ -88,6 +88,28 @@ def maybe_save_plots(
 def main() -> None:
     args = parse_args()
 
+    reward_config = RewardConfig(
+        single_score=2.0,
+        double_score=8.0,
+        triple_score=32.0,
+        tetris_score=120.0,
+        shaping_scale=0.02,
+        shaping_gamma=0.99,
+        aggregate_height_weight=0.12,
+        holes_weight=3.00,
+        bumpiness_weight=0.08,
+        max_height_weight=0.18,
+        row_transitions_weight=0.50,
+        column_transitions_weight=0.35,
+        rows_with_holes_weight=1.00,
+        hole_depth_weight=0.50,
+        cumulative_wells_weight=0.60,
+        eroded_piece_cells_weight=1.25,
+        survival_bonus=0.0,
+        game_over_penalty=-25.0,
+        invalid_action_penalty=-5.0,
+    )
+
     render_mode = None
     if args.render:
         render_mode = "rgb_array"
@@ -98,6 +120,7 @@ def main() -> None:
         "max_steps": args.max_steps,
         "render_mode": render_mode,
         "render_upscale": args.upscale,
+        "reward_config": reward_config,
     }
     if args.preset is not None:
         env_kwargs["initial_board_preset"] = args.preset
@@ -188,11 +211,18 @@ def main() -> None:
     print(f"Mean reward:         {rewards.mean():.3f}")
     print(f"Std reward:          {rewards.std():.3f}")
     print(f"Max reward:          {rewards.max():.3f}")
+    print(f"Mean reward / step:  {(rewards.sum() / max(lengths.sum(), 1)):.4f}")
     print(f"Mean episode length: {lengths.mean():.2f}")
     print(f"Max episode length:  {lengths.max()}")
     print(f"Mean total lines:    {total_lines.mean():.2f}")
     print(f"Max total lines:     {total_lines.max()}")
     print(f"Invalid episodes:    {invalids.sum()}")
+
+    reward_per_step_global = rewards.sum() / max(lengths.sum(), 1)
+    reward_per_step_episode = rewards / np.maximum(lengths, 1)
+
+    print(f"Mean reward / step:  {reward_per_step_global:.4f}")
+    print(f"Mean ep reward/step: {reward_per_step_episode.mean():.4f}")
 
     if args.plot:
         maybe_save_plots(
