@@ -38,7 +38,7 @@ from src.envs.placement_core import (
 
 PIECES = ["I", "O", "T", "J", "L", "S", "Z"]
 ENCODINGS = ["occupancy", "heights", "holes", "candidates", "result"]
-BOARDS_DIR = PROJECT_ROOT / "boards"
+BOARDS_DIR = PROJECT_ROOT / "data" / "boards"
 
 
 def parse_args() -> argparse.Namespace:
