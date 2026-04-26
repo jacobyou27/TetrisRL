@@ -26,7 +26,7 @@ These sources influenced the motivation and framing of the project, but the fina
 
 ## AI Tool Usage
 
-I used AI development tools (including ChatGPT and GitHub Copilot) in a collaborative role, not as a substitute for understanding.
+I used ChatGPT in a collaborative role.
 
 ### How AI tools were used
 
@@ -35,11 +35,8 @@ AI assistance was used for:
 - brainstorming project directions,
 - comparing Tetris AI approaches from public references,
 - discussing the tradeoffs between primitive-action RL and placement-based search,
-- generating draft code for helper functions and refactors,
-- debugging benchmark/profiler scripts,
-- refining logging and evaluation output,
-- drafting documentation structure,
-- and revising README / setup / attribution text.
+- help with debugging benchmark/profiler scripts,
+- and refining comments, logging and evaluation output to be more aesthetic.
 
 ### What remained my responsibility
 
@@ -53,9 +50,3 @@ I personally made the key project decisions, including:
 - choosing the GA-based final direction,
 - interpreting all results,
 - and verifying the final writeup and claims against the rubric.
-
-Any AI-assisted code that was retained was reviewed, tested, and often modified before use. I did not rely on generated code without inspecting and integrating it into the broader system myself.
-
-## Human Collaboration
-
-This was a **solo project**. No partner contributed code or documentation.
