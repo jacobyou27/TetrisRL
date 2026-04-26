@@ -205,7 +205,7 @@ def board_to_ascii(board: np.ndarray) -> str:
 def make_preset_board(name: str) -> np.ndarray:
     from pathlib import Path
 
-    presets_dir = Path(__file__).resolve().parent.parent.parent / "boards"
+    presets_dir = Path(__file__).resolve().parent.parent.parent / "data" / "boards"
     board_file = presets_dir / f"{name}.txt"
 
     if not board_file.exists():
