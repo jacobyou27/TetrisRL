@@ -223,9 +223,7 @@ That would make the problem dramatically harder.
 
 ### Simplification: not aiming for modern guideline Tetris
 
-A crucial design decision was to not make the project a full modern Tetris simulator. T-spins, SRS, kick logic, and controller-faithful movement were treated as out of scope. That removed a large amount of complexity and let the project focus on the central decision problem:
-
-> Which final placement should the agent choose?
+A crucial design decision was to not make the project a full modern Tetris simulator. T-spins, SRS, kick logic, and controller-faithful movement were treated as out of scope. That removed a large amount of complexity and let the project focus on the central decision problem, which final placement should the agent choose?
 
 ### Pivot from movement-learning to placement-learning
 
