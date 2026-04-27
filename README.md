@@ -57,8 +57,8 @@ See `SETUP.md` for more detailed environment setup, troubleshooting, and notes o
 
 ## Video Links
 
-- **Demo Video:** [INSERT_DEMO_VIDEO_LINK]
-- **Technical Walkthrough:** [INSERT_TECH_WALKTHROUGH_LINK]
+- **Demo Video:** [Watch the demo](videos/demo.mp4)
+- **Technical Walkthrough:** [Watch the technical walk through](videos/tech_walk.mp4)
 
 ## Evaluation
 
